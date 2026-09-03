@@ -8,9 +8,6 @@ jobs:
   build:
     runs-on: windows-2022
 
-    # Les bibliotheques du SDK DirectX de 2007 sont anterieures a SAFESEH,
-    # que l editeur de liens moderne exige par defaut. link.exe lit cette
-    # variable et y ajoute les options supplementaires.
     env:
       LINK: /SAFESEH:NO
 
@@ -40,18 +37,23 @@ jobs:
         continue-on-error: true
         shell: cmd
         working-directory: src
-        run: msbuild game.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
+        run: msbuild game.sln /p:Configuration=Release /p:Platform=Win32 /m /v:normal
 
       - name: Compiler en Debug (secours)
         continue-on-error: true
         shell: cmd
         working-directory: src
-        run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:minimal
+        run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:normal
 
-      - name: Lister tout ce qui a ete produit
-        continue-on-error: true
+      # Inventaire complet, pour savoir exactement ou atterrissent les binaires.
+      - name: Inventaire des binaires produits
+        if: always()
         shell: pwsh
-        run: Get-ChildItem -Path src -Recurse -Include *.dll,*.exe | Select-Object FullName, Length | Format-Table -AutoSize
+        run: |
+          Write-Host "=== Tous les .dll et .exe du depot ==="
+          Get-ChildItem -Path . -Recurse -Include *.dll,*.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch "Includes" } |
+            ForEach-Object { "{0}  ({1} octets)" -f $_.FullName, $_.Length }
 
       - name: Recuperer les binaires
         if: always()
@@ -59,8 +61,8 @@ jobs:
         with:
           name: binaires-BASE
           path: |
-            src/**/Release/**/*.dll
-            src/**/Release/**/*.exe
-            src/**/Debug/**/*.dll
-            src/**/Debug/**/*.exe
+            **/*.dll
+            **/*.exe
+            !src/Includes/**
+            !src/Libraries/**
           if-no-files-found: warn
