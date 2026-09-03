@@ -96,9 +96,29 @@ void GuiEdit::analyseString()
     );
 
     const int* length = ScriptString_pcOutChars( _strAnalysis );
-    assert( length );
-    _glyphWidths.resize( (size_t) *length );
-    ScriptStringGetLogicalWidths( _strAnalysis, &_glyphWidths[0] );
+    if( length )
+    {
+        _glyphWidths.resize( (size_t) *length );
+        ScriptStringGetLogicalWidths( _strAnalysis, &_glyphWidths[0] );
+    }
+    else
+    {
+        // ScriptStringAnalyse a echoue : cela arrive sous Wine, dont
+        // l implementation d Uniscribe ne gere pas les chaines ANSI
+        // (fixme:uniscribe:ScriptStringAnalyse Only Unicode strings are
+        // supported). On mesure alors chaque caractere directement avec GDI,
+        // ce qui suffit a positionner le curseur de saisie.
+        _glyphWidths.resize( _text.length() + 1, 0 );
+        HDC dc = font->GetDC();
+        for( size_t i = 0; i < _text.length(); i++ )
+        {
+            SIZE charSize = { 0, 0 };
+            if( GetTextExtentPoint32A( dc, _text.c_str() + i, 1, &charSize ) )
+            {
+                _glyphWidths[i] = charSize.cx;
+            }
+        }
+    }
 }
 
 #pragma warning(disable:4018)
