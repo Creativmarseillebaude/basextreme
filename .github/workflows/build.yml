@@ -42,31 +42,40 @@ jobs:
         working-directory: src
         run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:normal > debug.log 2>&1
 
-      # Ecrit les erreurs directement sur la page de resume du job,
-      # ou elles sont lisibles sans deplier le moindre journal.
       - name: Resume des erreurs
         if: always()
+        continue-on-error: true
         shell: pwsh
         run: |
-          foreach ($f in @("src/release.log","src/debug.log")) {
-            "## $f" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          $out = $env:GITHUB_STEP_SUMMARY
+          foreach ($f in @("src/release.log", "src/debug.log")) {
+            Add-Content -Path $out -Value ("## " + $f)
+            Write-Host ("===== " + $f + " =====")
             if (Test-Path $f) {
               $e = Select-String -Path $f -Pattern "error [A-Z]+[0-9]+" |
                    ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 40
               if ($e) {
-                "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-                $e | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-                "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-              } else { "Aucune erreur." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
-            } else { "Journal absent." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
+                foreach ($ligne in $e) {
+                  Add-Content -Path $out -Value ("    " + $ligne)
+                  Write-Host $ligne
+                }
+              } else {
+                Add-Content -Path $out -Value "Aucune erreur."
+                Write-Host "Aucune erreur."
+              }
+            } else {
+              Add-Content -Path $out -Value "Journal absent."
+              Write-Host "Journal absent."
+            }
           }
-          "## Binaires produits" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-          "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          Add-Content -Path $out -Value "## Binaires produits"
+          Write-Host "===== binaires ====="
           Get-ChildItem -Path . -Recurse -Include *.dll,*.exe -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch "Includes" } |
-            ForEach-Object { $_.FullName.Replace($PWD.Path + "\","") } |
-            Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-          "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            ForEach-Object {
+              Add-Content -Path $out -Value ("    " + $_.FullName)
+              Write-Host $_.FullName
+            }
 
       - name: Recuperer les binaires et les journaux
         if: always()
