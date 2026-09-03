@@ -1056,11 +1056,11 @@
 			Name="Utils"
 			>
 			<File
-				RelativePath="E:\Projects\Base eXtreme\Work\src\engine\configreader.cpp"
+				RelativePath=".\configreader.cpp"
 				>
 			</File>
 			<File
-				RelativePath="E:\Projects\Base eXtreme\Work\src\engine\configreader.h"
+				RelativePath=".\configreader.h"
 				>
 			</File>
 		</Filter>
