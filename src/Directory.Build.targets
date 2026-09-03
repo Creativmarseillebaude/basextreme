@@ -2,15 +2,21 @@
 <!--
   Applique a TOUS les projets de src/, apres leur propre configuration.
 
-  Les bibliotheques fournies avec le jeu (SDK DirectX 2007, Ogg/Vorbis) ont
-  ete compilees avant SAFESEH, une protection que l editeur de liens moderne
-  exige par defaut. Sans cette desactivation, l edition de liens echoue avec
-  "error LNK2026: module unsafe for SAFESEH image".
+  1. SAFESEH : les bibliotheques fournies avec le jeu (SDK DirectX 2007,
+     Ogg/Vorbis) sont anterieures a cette protection, que l editeur de liens
+     moderne exige par defaut.
+     Sans cela : "error LNK2026: module unsafe for SAFESEH image".
+
+  2. legacy_stdio_definitions.lib : depuis Visual Studio 2015, printf, sprintf
+     et consorts sont devenus des fonctions inline. Les bibliotheques compilees
+     avant cela cherchent encore les anciens symboles.
+     Sans cela : "error LNK2019: unresolved external symbol _sprintf".
 -->
 <Project>
   <ItemDefinitionGroup>
     <Link>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <AdditionalDependencies>legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 </Project>
