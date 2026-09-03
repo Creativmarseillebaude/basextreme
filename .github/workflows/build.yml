@@ -1,4 +1,8 @@
-name: Compiler B.A.S.E.
+name: Compiler B.A.S.E. (revision 2009)
+
+# Compile la revision e10897c6 du 18 decembre 2009, anterieure au chargement
+# automatique des voiles depuis res/Gear. Elle correspond aux donnees des
+# editions Web et Pro. Les correctifs sont appliques a la volee.
 
 on:
   push:
@@ -9,8 +13,11 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      - name: Recuperer le code
+      - name: Recuperer la revision de 2009
         uses: actions/checkout@v4
+        with:
+          repository: cheinkn/basextreme
+          ref: e10897c6
 
       - name: Ajouter MSBuild au PATH
         uses: microsoft/setup-msbuild@v2
@@ -22,6 +29,99 @@ jobs:
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $path = & $vswhere -latest -property installationPath
           echo "devenv=$path\Common7\IDE\devenv.com" >> $env:GITHUB_OUTPUT
+
+      - name: Appliquer les correctifs
+        shell: pwsh
+        run: |
+          $nl = [char]10
+          $d  = [char]36
+          $q  = [char]34
+          $ok = $true
+
+          $r = "src/Includes/DirectX/Include/rpcsal.h"
+          if (Test-Path $r) { Remove-Item $r; Write-Host "1. rpcsal.h supprime" }
+          else { Write-Host "1. rpcsal.h deja absent" }
+
+          $targets = @(
+            "<Project>",
+            "  <ItemDefinitionGroup>",
+            "    <ClCompile>",
+            "      <PrecompiledHeader>NotUsing</PrecompiledHeader>",
+            ("      <AdditionalIncludeDirectories>" + $d + "(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>"),
+            "    </ClCompile>",
+            "    <Link>",
+            "      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>",
+            "      <AdditionalDependencies>legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>",
+            "    </Link>",
+            "  </ItemDefinitionGroup>",
+            "</Project>"
+          ) -join $nl
+          Set-Content -Path "src/Directory.Build.targets" -Value $targets
+          Write-Host "2. Directory.Build.targets ecrit"
+
+          $p = "src/engine/guiedit.cpp"
+          $t = (Get-Content $p -Raw).Replace([char]13 + [char]10, $nl)
+          $old = @(
+            "    assert( length );",
+            "    _glyphWidths.resize( (size_t) *length );",
+            "    ScriptStringGetLogicalWidths( _strAnalysis, &_glyphWidths[0] );"
+          ) -join $nl
+          $new = @(
+            "    if( length )",
+            "    {",
+            "        _glyphWidths.resize( (size_t) *length );",
+            "        ScriptStringGetLogicalWidths( _strAnalysis, &_glyphWidths[0] );",
+            "    }",
+            "    else",
+            "    {",
+            "        // Wine ne gere pas ScriptStringAnalyse en mode ANSI : on",
+            "        // mesure alors chaque caractere directement avec GDI.",
+            "        _glyphWidths.resize( _text.length() + 1, 0 );",
+            "        HDC dc = font->GetDC();",
+            "        for( size_t i = 0; i < _text.length(); i++ )",
+            "        {",
+            "            SIZE cs = { 0, 0 };",
+            "            if( GetTextExtentPoint32A( dc, _text.c_str() + i, 1, &cs ) )",
+            "            {",
+            "                _glyphWidths[i] = cs.cx;",
+            "            }",
+            "        }",
+            "    }"
+          ) -join $nl
+          if ($t.Contains($old)) {
+            Set-Content -Path $p -Value $t.Replace($old, $new) -NoNewline
+            Write-Host "3. guiedit.cpp corrige (Uniscribe)"
+          } else {
+            Write-Host "3. ERREUR: motif Uniscribe introuvable"
+            $ok = $false
+          }
+
+          $s = "src/game.sln"
+          $lines = [System.Collections.ArrayList](Get-Content $s)
+          $needle = "= " + $q + "language" + $q + ","
+          $guid = $null
+          foreach ($l in $lines) {
+            if ($l.Contains($needle)) {
+              $mm = [regex]::Matches($l, "\{([0-9A-Fa-f-]+)\}")
+              if ($mm.Count -gt 0) { $guid = $mm[$mm.Count - 1].Groups[1].Value }
+            }
+          }
+          if ($guid) {
+            $ajouts = 0
+            for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+              if ($lines[$i].Contains($guid) -and $lines[$i].Contains("ActiveCfg")) {
+                $build = $lines[$i].Replace("ActiveCfg", "Build.0")
+                if (-not ($lines -contains $build)) { [void]$lines.Insert($i + 1, $build); $ajouts++ }
+              }
+            }
+            Set-Content -Path $s -Value $lines
+            Write-Host ("4. game.sln : " + $ajouts + " ligne(s) Build.0 ajoutee(s) pour language")
+          } else {
+            Write-Host "4. ERREUR: projet language introuvable"
+            $ok = $false
+          }
+
+          if (-not $ok) { exit 1 }
 
       - name: Convertir les projets au format actuel
         continue-on-error: true
@@ -42,7 +142,7 @@ jobs:
         working-directory: src
         run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:normal > debug.log 2>&1
 
-      - name: Resume des erreurs
+      - name: Resume
         if: always()
         continue-on-error: true
         shell: pwsh
@@ -50,38 +150,23 @@ jobs:
           $out = $env:GITHUB_STEP_SUMMARY
           foreach ($f in @("src/release.log", "src/debug.log")) {
             Add-Content -Path $out -Value ("## " + $f)
-            Write-Host ("===== " + $f + " =====")
             if (Test-Path $f) {
               $e = Select-String -Path $f -Pattern "error [A-Z]+[0-9]+" |
-                   ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 40
-              if ($e) {
-                foreach ($ligne in $e) {
-                  Add-Content -Path $out -Value ("    " + $ligne)
-                  Write-Host $ligne
-                }
-              } else {
-                Add-Content -Path $out -Value "Aucune erreur."
-                Write-Host "Aucune erreur."
-              }
-            } else {
-              Add-Content -Path $out -Value "Journal absent."
-              Write-Host "Journal absent."
-            }
+                   ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 30
+              if ($e) { foreach ($x in $e) { Add-Content -Path $out -Value ("    " + $x); Write-Host $x } }
+              else { Add-Content -Path $out -Value "Aucune erreur." }
+            } else { Add-Content -Path $out -Value "Journal absent." }
           }
           Add-Content -Path $out -Value "## Binaires produits"
-          Write-Host "===== binaires ====="
           Get-ChildItem -Path . -Recurse -Include *.dll,*.exe -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch "Includes" } |
-            ForEach-Object {
-              Add-Content -Path $out -Value ("    " + $_.FullName)
-              Write-Host $_.FullName
-            }
+            ForEach-Object { Add-Content -Path $out -Value ("    " + $_.FullName); Write-Host $_.FullName }
 
-      - name: Recuperer les binaires et les journaux
+      - name: Recuperer les binaires
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: binaires-BASE
+          name: binaires-2009
           path: |
             game/**/*.dll
             game/**/*.exe
