@@ -1,0 +1,71 @@
+name: Compiler B.A.S.E.
+
+# Se declenche a chaque envoi de code, et manuellement depuis Actions.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Ajouter MSBuild au PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Localiser Visual Studio
+        id: vs
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $path = & $vswhere -latest -property installationPath
+          echo "devenv=$path\Common7\IDE\devenv.com" >> $env:GITHUB_OUTPUT
+          Write-Host "Visual Studio trouve dans : $path"
+
+      # Les projets datent de Visual Studio 2008 (.vcproj) et doivent etre
+      # convertis au format actuel (.vcxproj) avant de pouvoir etre compiles.
+      - name: Convertir les projets au format actuel
+        continue-on-error: true
+        shell: cmd
+        working-directory: src
+        run: |
+          "${{ steps.vs.outputs.devenv }}" game.sln /Upgrade
+
+      - name: Lister les projets convertis
+        continue-on-error: true
+        shell: pwsh
+        run: Get-ChildItem -Path src -Recurse -Include *.vcxproj | Select-Object -ExpandProperty FullName
+
+      # La configuration Release supprime les assertions de debogage qui
+      # rendent le jeu inutilisable sous Wine.
+      - name: Compiler en Release
+        continue-on-error: true
+        shell: cmd
+        working-directory: src
+        run: msbuild game.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
+
+      - name: Compiler en Debug (secours)
+        continue-on-error: true
+        shell: cmd
+        working-directory: src
+        run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:minimal
+
+      - name: Lister tout ce qui a ete produit
+        continue-on-error: true
+        shell: pwsh
+        run: Get-ChildItem -Path src -Recurse -Include *.dll,*.exe,*.lib | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Recuperer les binaires
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaires-BASE
+          path: |
+            src/**/Release/**/*.dll
+            src/**/Release/**/*.exe
+            src/**/Debug/**/*.dll
+            src/**/Debug/**/*.exe
+          if-no-files-found: warn
