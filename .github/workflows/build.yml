@@ -128,6 +128,16 @@ jobs:
           [System.IO.File]::WriteAllText($p3, $v, $enc)
           Write-Host ("5. engine.vcproj : " + $n5 + " chemin(s) absolu(s) corrige(s)")
 
+          # 7 - reverberation DirectSound non implementee par Wine
+          $p4 = "src/audio2/spatial.cpp"
+          $sp = (Get-Content $p4 -Raw).Replace([char]13 + [char]10, $nl)
+          $oldR = "_dsCR( iDirectSoundFXWavesReverb8->SetAllParameters( &parameters ) );"
+          $newR = "iDirectSoundFXWavesReverb8->SetAllParameters( &parameters ); // Wine ne l implemente pas : echec tolere"
+          if ($sp.Contains($oldR)) {
+            Set-Content -Path $p4 -Value $sp.Replace($oldR, $newR) -NoNewline
+            Write-Host "7. spatial.cpp : reverberation rendue non fatale"
+          } else { Write-Host "7. ATTENTION motif reverberation introuvable" }
+
           # 6 - construire language en Release
           $s = "src/game.sln"
           $lines = [System.Collections.ArrayList](Get-Content $s)
