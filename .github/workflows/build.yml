@@ -1,8 +1,10 @@
-name: Compiler B.A.S.E. (revision 2009)
+name: Compiler B.A.S.E. (revision mai 2010)
 
-# Compile la revision e10897c6 du 18 decembre 2009, anterieure au chargement
-# automatique des voiles depuis res/Gear. Elle correspond aux donnees des
-# editions Web et Pro. Les correctifs sont appliques a la volee.
+# Revision 6b3b6f74 du 2 mai 2010 : la derniere avant le commit du 5 mai qui a
+# introduit le chargement automatique des voiles depuis res/Gear. Elle est donc
+# compatible avec les donnees des editions Web et Pro, tout en beneficiant de
+# tous les correctifs intermediaires. Les correctifs de portage sont appliques
+# a la volee ci-dessous.
 
 on:
   push:
@@ -13,11 +15,11 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      - name: Recuperer la revision de 2009
+      - name: Recuperer la revision du 2 mai 2010
         uses: actions/checkout@v4
         with:
           repository: cheinkn/basextreme
-          ref: e10897c68fa18107e9fa5a95cc0f1d8377d0181c
+          ref: 6b3b6f7403885876229fdcb4b3eb8690148ac590
 
       - name: Ajouter MSBuild au PATH
         uses: microsoft/setup-msbuild@v2
@@ -38,10 +40,11 @@ jobs:
           $q  = [char]34
           $ok = $true
 
+          # 1 - en-tete rpcsal.h perime du SDK DirectX 2007
           $r = "src/Includes/DirectX/Include/rpcsal.h"
-          if (Test-Path $r) { Remove-Item $r; Write-Host "1. rpcsal.h supprime" }
-          else { Write-Host "1. rpcsal.h deja absent" }
+          if (Test-Path $r) { Remove-Item $r; Write-Host "1. rpcsal.h supprime" } else { Write-Host "1. rpcsal.h absent" }
 
+          # 2 - reglages MSBuild communs
           $targets = @(
             "<Project>",
             "  <ItemDefinitionGroup>",
@@ -59,6 +62,7 @@ jobs:
           Set-Content -Path "src/Directory.Build.targets" -Value $targets
           Write-Host "2. Directory.Build.targets ecrit"
 
+          # 3 - correctif Uniscribe
           $p = "src/engine/guiedit.cpp"
           $t = (Get-Content $p -Raw).Replace([char]13 + [char]10, $nl)
           $old = @(
@@ -91,11 +95,39 @@ jobs:
           if ($t.Contains($old)) {
             Set-Content -Path $p -Value $t.Replace($old, $new) -NoNewline
             Write-Host "3. guiedit.cpp corrige (Uniscribe)"
-          } else {
-            Write-Host "3. ERREUR: motif Uniscribe introuvable"
-            $ok = $false
-          }
+          } else { Write-Host "3. ERREUR motif Uniscribe introuvable"; $ok = $false }
 
+          # 4 - iterateur _Mynode supprime de la bibliotheque standard
+          $p2 = "src/engine/animation.cpp"
+          $a = (Get-Content $p2 -Raw).Replace([char]13 + [char]10, $nl)
+          $n4 = 0
+          if ($a.Contains("_activeWeightSetI._Mynode() != 0")) {
+            $a = $a.Replace("_activeWeightSetI._Mynode() != 0", "_activeWeightSetI != _weightSetMap.end()"); $n4++
+          }
+          if ($a.Contains("_activeWeightSetI = WeightSetI();")) {
+            $a = $a.Replace("_activeWeightSetI = WeightSetI();", "_activeWeightSetI = _weightSetMap.end();"); $n4++
+          }
+          $mc = [regex]::Match($a, "AnimationController::AnimationController\s*\([^)]*\)[^{]*\{")
+          if ($mc.Success) {
+            $a = $a.Insert($mc.Index + $mc.Length, $nl + "    _activeWeightSetI = _weightSetMap.end();"); $n4++
+          }
+          Set-Content -Path $p2 -Value $a -NoNewline
+          Write-Host ("4. animation.cpp : " + $n4 + " correction(s)")
+          if ($n4 -lt 3) { Write-Host "4. ATTENTION toutes les corrections n ont pas ete appliquees" }
+
+          # 5 - chemins absolus du disque du developpeur d origine
+          $p3 = "src/engine/engine.vcproj"
+          $enc = [System.Text.Encoding]::GetEncoding(28591)
+          $v = [System.IO.File]::ReadAllText($p3, $enc)
+          $base = "E:\Projects\Base eXtreme\Work\src\engine\"
+          $n5 = 0
+          foreach ($nm in @("configreader.cpp", "configreader.h")) {
+            if ($v.Contains($base + $nm)) { $v = $v.Replace($base + $nm, ".\" + $nm); $n5++ }
+          }
+          [System.IO.File]::WriteAllText($p3, $v, $enc)
+          Write-Host ("5. engine.vcproj : " + $n5 + " chemin(s) absolu(s) corrige(s)")
+
+          # 6 - construire language en Release
           $s = "src/game.sln"
           $lines = [System.Collections.ArrayList](Get-Content $s)
           $needle = "= " + $q + "language" + $q + ","
@@ -107,19 +139,16 @@ jobs:
             }
           }
           if ($guid) {
-            $ajouts = 0
+            $n6 = 0
             for ($i = $lines.Count - 1; $i -ge 0; $i--) {
               if ($lines[$i].Contains($guid) -and $lines[$i].Contains("ActiveCfg")) {
-                $build = $lines[$i].Replace("ActiveCfg", "Build.0")
-                if (-not ($lines -contains $build)) { [void]$lines.Insert($i + 1, $build); $ajouts++ }
+                $b = $lines[$i].Replace("ActiveCfg", "Build.0")
+                if (-not ($lines -contains $b)) { [void]$lines.Insert($i + 1, $b); $n6++ }
               }
             }
             Set-Content -Path $s -Value $lines
-            Write-Host ("4. game.sln : " + $ajouts + " ligne(s) Build.0 ajoutee(s) pour language")
-          } else {
-            Write-Host "4. ERREUR: projet language introuvable"
-            $ok = $false
-          }
+            Write-Host ("6. game.sln : " + $n6 + " ligne(s) Build.0 ajoutee(s)")
+          } else { Write-Host "6. ERREUR projet language introuvable"; $ok = $false }
 
           if (-not $ok) { exit 1 }
 
@@ -166,7 +195,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: binaires-2009
+          name: binaires-mai2010
           path: |
             game/**/*.dll
             game/**/*.exe
