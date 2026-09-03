@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: cheinkn/basextreme
-          ref: e10897c6
+          ref: e10897c68fa18107e9fa5a95cc0f1d8377d0181c
 
       - name: Ajouter MSBuild au PATH
         uses: microsoft/setup-msbuild@v2
