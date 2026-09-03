@@ -2,9 +2,9 @@
 <!--
   Applique a TOUS les projets de src/, apres leur propre configuration.
 
-  1. SAFESEH : les bibliotheques fournies avec le jeu (SDK DirectX 2007,
-     Ogg/Vorbis) sont anterieures a cette protection, exigee par defaut par
-     l editeur de liens moderne.
+  1. SAFESEH desactive : les bibliotheques fournies avec le jeu (SDK DirectX
+     2007, Ogg/Vorbis) sont anterieures a cette protection, exigee par defaut
+     par l editeur de liens moderne.
      Sans cela : "error LNK2026: module unsafe for SAFESEH image".
 
   2. legacy_stdio_definitions.lib : depuis Visual Studio 2015, sprintf et
@@ -12,16 +12,20 @@
      avant cela cherchent encore les anciens symboles.
      Sans cela : "error LNK2019: unresolved external symbol _sprintf".
 
-  3. En-tetes precompiles desactives : le fichier qui devait creer
-     gameplay.pch ne le produit plus apres conversion, ce qui fait echouer
-     tous les sources du module. Chaque fichier inclut deja headers.h
-     explicitement, la compilation fonctionne donc sans ce mecanisme.
+  3. En-tetes precompiles desactives : le fichier qui devait creer le .pch ne
+     le produit plus apres conversion, ce qui faisait echouer tout le module.
      Sans cela : "error C1083: Cannot open precompiled header file".
+
+  4. Dossier du projet ajoute au chemin de recherche : sans en-tete
+     precompile, les sources tiers (TinyXML) doivent trouver headers.h,
+     qui vit a la racine de chaque module.
+     Sans cela : "error C1083: Cannot open include file: headers.h".
 -->
 <Project>
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
