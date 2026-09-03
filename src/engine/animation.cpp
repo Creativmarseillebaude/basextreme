@@ -9,6 +9,10 @@
 
 Animation::Animation(const char* name, unsigned int numKeys)
 {
+    // Marqueur "aucun jeu de poids actif". Le code d origine utilisait un
+    // iterateur par defaut, teste via _Mynode() : un membre interne de la
+    // bibliotheque standard Microsoft supprime depuis. On utilise end().
+    _activeWeightSetI = _weightSetMap.end();
     assert( numKeys > 0 );
 
     _name    = name;
@@ -481,7 +485,7 @@ void AnimationController::advanceMultipleTracks(float dt)
             weightSet.weight[k] = _track[k].weight;
             weightSum += weightSet.weight[k];
         }
-        if( _activeWeightSetI._Mynode() != 0 )
+        if( _activeWeightSetI != _weightSetMap.end() )
         {
             weightSum = 0.0f;
             for( j=0; j<numActiveTracks; j++ )
@@ -638,12 +642,12 @@ void AnimationController::enableWeightSet(const char* weightSetName)
 {
     _activeWeightSetI = _weightSetMap.find( weightSetName );
     assert( _activeWeightSetI != _weightSetMap.end() );
-    if( _activeWeightSetI == _weightSetMap.end() ) _activeWeightSetI = WeightSetI();
+    if( _activeWeightSetI == _weightSetMap.end() ) _activeWeightSetI = _weightSetMap.end();
 }
 
 void AnimationController::disableWeightSet(void)
 {
-    _activeWeightSetI = WeightSetI();
+    _activeWeightSetI = _weightSetMap.end();
 }
 
 engine::WeightSet* AnimationController::getWeightSet(const char* weightSetName)
