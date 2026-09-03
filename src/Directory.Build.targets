@@ -3,17 +3,26 @@
   Applique a TOUS les projets de src/, apres leur propre configuration.
 
   1. SAFESEH : les bibliotheques fournies avec le jeu (SDK DirectX 2007,
-     Ogg/Vorbis) sont anterieures a cette protection, que l editeur de liens
-     moderne exige par defaut.
+     Ogg/Vorbis) sont anterieures a cette protection, exigee par defaut par
+     l editeur de liens moderne.
      Sans cela : "error LNK2026: module unsafe for SAFESEH image".
 
-  2. legacy_stdio_definitions.lib : depuis Visual Studio 2015, printf, sprintf
-     et consorts sont devenus des fonctions inline. Les bibliotheques compilees
+  2. legacy_stdio_definitions.lib : depuis Visual Studio 2015, sprintf et
+     consorts sont devenus des fonctions inline. Les bibliotheques compilees
      avant cela cherchent encore les anciens symboles.
      Sans cela : "error LNK2019: unresolved external symbol _sprintf".
+
+  3. En-tetes precompiles desactives : le fichier qui devait creer
+     gameplay.pch ne le produit plus apres conversion, ce qui fait echouer
+     tous les sources du module. Chaque fichier inclut deja headers.h
+     explicitement, la compilation fonctionne donc sans ce mecanisme.
+     Sans cela : "error C1083: Cannot open precompiled header file".
 -->
 <Project>
   <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <Link>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <AdditionalDependencies>legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
