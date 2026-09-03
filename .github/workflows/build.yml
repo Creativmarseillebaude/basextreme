@@ -50,7 +50,7 @@ jobs:
             "  <ItemDefinitionGroup>",
             "    <ClCompile>",
             "      <PrecompiledHeader>NotUsing</PrecompiledHeader>",
-            ("      <AdditionalIncludeDirectories>" + $d + "(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>"),
+            ("      <AdditionalIncludeDirectories>" + $d + "(MSBuildProjectDirectory);" + $d + "(MSBuildThisFileDirectory)Includes\TinyXML\include;" + $d + "(MSBuildThisFileDirectory)Includes\Ogg\include;" + $d + "(MSBuildThisFileDirectory)Includes\Vorbis\include;" + $d + "(MSBuildThisFileDirectory)Includes\DirectX\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>"),
             "    </ClCompile>",
             "    <Link>",
             "      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>",
