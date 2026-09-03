@@ -1,6 +1,5 @@
 name: Compiler B.A.S.E.
 
-# Se declenche a chaque envoi de code, et manuellement depuis Actions.
 on:
   push:
   workflow_dispatch:
@@ -8,6 +7,12 @@ on:
 jobs:
   build:
     runs-on: windows-2022
+
+    # Les bibliotheques du SDK DirectX de 2007 sont anterieures a SAFESEH,
+    # que l editeur de liens moderne exige par defaut. link.exe lit cette
+    # variable et y ajoute les options supplementaires.
+    env:
+      LINK: /SAFESEH:NO
 
     steps:
       - name: Recuperer le code
@@ -23,10 +28,7 @@ jobs:
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $path = & $vswhere -latest -property installationPath
           echo "devenv=$path\Common7\IDE\devenv.com" >> $env:GITHUB_OUTPUT
-          Write-Host "Visual Studio trouve dans : $path"
 
-      # Les projets datent de Visual Studio 2008 (.vcproj) et doivent etre
-      # convertis au format actuel (.vcxproj) avant de pouvoir etre compiles.
       - name: Convertir les projets au format actuel
         continue-on-error: true
         shell: cmd
@@ -34,13 +36,6 @@ jobs:
         run: |
           "${{ steps.vs.outputs.devenv }}" game.sln /Upgrade
 
-      - name: Lister les projets convertis
-        continue-on-error: true
-        shell: pwsh
-        run: Get-ChildItem -Path src -Recurse -Include *.vcxproj | Select-Object -ExpandProperty FullName
-
-      # La configuration Release supprime les assertions de debogage qui
-      # rendent le jeu inutilisable sous Wine.
       - name: Compiler en Release
         continue-on-error: true
         shell: cmd
@@ -56,7 +51,7 @@ jobs:
       - name: Lister tout ce qui a ete produit
         continue-on-error: true
         shell: pwsh
-        run: Get-ChildItem -Path src -Recurse -Include *.dll,*.exe,*.lib | Select-Object FullName, Length | Format-Table -AutoSize
+        run: Get-ChildItem -Path src -Recurse -Include *.dll,*.exe | Select-Object FullName, Length | Format-Table -AutoSize
 
       - name: Recuperer les binaires
         if: always()
