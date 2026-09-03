@@ -8,9 +8,6 @@ jobs:
   build:
     runs-on: windows-2022
 
-    env:
-      LINK: /SAFESEH:NO
-
     steps:
       - name: Recuperer le code
         uses: actions/checkout@v4
@@ -37,32 +34,47 @@ jobs:
         continue-on-error: true
         shell: cmd
         working-directory: src
-        run: msbuild game.sln /p:Configuration=Release /p:Platform=Win32 /m /v:normal
+        run: msbuild game.sln /p:Configuration=Release /p:Platform=Win32 /m /v:normal > release.log 2>&1
 
-      - name: Compiler en Debug (secours)
+      - name: Compiler en Debug
         continue-on-error: true
         shell: cmd
         working-directory: src
-        run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:normal
+        run: msbuild game.sln /p:Configuration=Debug /p:Platform=Win32 /m /v:normal > debug.log 2>&1
 
-      # Inventaire complet, pour savoir exactement ou atterrissent les binaires.
-      - name: Inventaire des binaires produits
+      # Ecrit les erreurs directement sur la page de resume du job,
+      # ou elles sont lisibles sans deplier le moindre journal.
+      - name: Resume des erreurs
         if: always()
         shell: pwsh
         run: |
-          Write-Host "=== Tous les .dll et .exe du depot ==="
+          foreach ($f in @("src/release.log","src/debug.log")) {
+            "## $f" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            if (Test-Path $f) {
+              $e = Select-String -Path $f -Pattern "error [A-Z]+[0-9]+" |
+                   ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 40
+              if ($e) {
+                "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+                $e | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+                "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+              } else { "Aucune erreur." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
+            } else { "Journal absent." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
+          }
+          "## Binaires produits" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           Get-ChildItem -Path . -Recurse -Include *.dll,*.exe -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch "Includes" } |
-            ForEach-Object { "{0}  ({1} octets)" -f $_.FullName, $_.Length }
+            ForEach-Object { $_.FullName.Replace($PWD.Path + "\","") } |
+            Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          "```" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
-      - name: Recuperer les binaires
+      - name: Recuperer les binaires et les journaux
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: binaires-BASE
           path: |
-            **/*.dll
-            **/*.exe
-            !src/Includes/**
-            !src/Libraries/**
+            game/**/*.dll
+            game/**/*.exe
+            src/*.log
           if-no-files-found: warn
