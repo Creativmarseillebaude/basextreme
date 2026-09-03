@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Applique a TOUS les projets de src/, apres leur propre configuration.
+
+  Les bibliotheques fournies avec le jeu (SDK DirectX 2007, Ogg/Vorbis) ont
+  ete compilees avant SAFESEH, une protection que l editeur de liens moderne
+  exige par defaut. Sans cette desactivation, l edition de liens echoue avec
+  "error LNK2026: module unsafe for SAFESEH image".
+-->
+<Project>
+  <ItemDefinitionGroup>
+    <Link>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>
