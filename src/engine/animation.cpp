@@ -9,10 +9,6 @@
 
 Animation::Animation(const char* name, unsigned int numKeys)
 {
-    // Marqueur "aucun jeu de poids actif". Le code d origine utilisait un
-    // iterateur par defaut, teste via _Mynode() : un membre interne de la
-    // bibliotheque standard Microsoft supprime depuis. On utilise end().
-    _activeWeightSetI = _weightSetMap.end();
     assert( numKeys > 0 );
 
     _name    = name;
@@ -213,6 +209,11 @@ void AnimationController::Track::updateAbsoluteTime(void)
 
 AnimationController::AnimationController(Frame* hierarchy, AnimationSet* animationSet, Frame* hierarchyRoot)
 {
+    // Marqueur "aucun jeu de poids actif". Le code d origine utilisait un
+    // iterateur par defaut, teste via _Mynode() : membre interne de la
+    // bibliotheque standard Microsoft, supprime depuis. On utilise end().
+    _activeWeightSetI = _weightSetMap.end();
+
     _hierarchy = hierarchy;
     _animationSet = animationSet;
     _animationSet->_numReferences++;
